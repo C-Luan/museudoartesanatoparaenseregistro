@@ -80,6 +80,8 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF3D3D3D),
+        automaticallyImplyLeading: false,
+        
         elevation: 0.5,
         title: Row(
           children: [
