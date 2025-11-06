@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:registromap/routes/apuracao_page.dart';
 import 'routes/registro_page.dart';
 import 'routes/feedback_page.dart';
 import 'firebase_options.dart'; // gerado pelo comando `flutterfire configure`
@@ -28,6 +29,7 @@ class MuseuApp extends StatelessWidget {
       ),
       initialRoute: '/registro',
       routes: {
+        '/apuracao': (context) => const ApuracaoPage(),
         '/registro': (context) => const RegistroPage(),
         '/feedback': (context) => const FeedbackPage(),
       },
