@@ -31,46 +31,78 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
   final totalEncomendadoController = TextEditingController();
 
   Future<List<Map<String, dynamic>>> _buscarEmpreendedores() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('empreendedores')
-        .get();
-    return snapshot.docs
-        .map((d) => {'id': d.id, 'nome': d['nome'], 'barraca': d['barraca']})
-        .toList();
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('empreendedores')
+          .orderBy('nome')
+          .get();
+
+      return snapshot.docs.map((d) {
+        final data = d.data();
+        return {
+          'id': d.id,
+          'nome': (data['nome'] ?? '').toString(),
+          'barraca': (data['barraca'] ?? '').toString(),
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Erro ao buscar empreendedores: $e');
+      return [];
+    }
   }
 
   Future<void> _salvarApuracao() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_cadastrandoNovo) {
-      final novo = await FirebaseFirestore.instance
-          .collection('empreendedores')
-          .add({'nome': nomeNovoEmpreendedor, 'barraca': barraca});
-      empreendedorId = novo.id;
-      empreendedorSelecionado = nomeNovoEmpreendedor;
+    try {
+      if (_cadastrandoNovo) {
+        final novo = await FirebaseFirestore.instance
+            .collection('empreendedores')
+            .add({'nome': nomeNovoEmpreendedor, 'barraca': barraca});
+        empreendedorId = novo.id;
+        empreendedorSelecionado = nomeNovoEmpreendedor;
+      }
+
+      // 🕒 Converter data digitada (dd/MM/yyyy) → Timestamp
+      DateTime dataApuracao;
+      try {
+        dataApuracao = DateFormat('dd/MM/yyyy').parse(dataController.text);
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Formato de data inválido. Use dd/MM/yyyy."),
+          ),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('apuracoes').add({
+        'empreendedorId': empreendedorId,
+        'empreendedorNome': empreendedorSelecionado ?? nomeNovoEmpreendedor,
+        'data': Timestamp.fromDate(dataApuracao), // 🔥 agora como Timestamp
+        'pecasVendidas': int.tryParse(pecasVendidasController.text) ?? 0,
+        'totalVendas': _parseMoney(totalVendasController.text),
+        'totalEncomendado': _parseMoney(totalEncomendadoController.text),
+        'pecasEncomendadas':
+            int.tryParse(pecasEncomendadasController.text) ?? 0,
+        'criadoEm': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Apuração registrada com sucesso!")),
+      );
+
+      _formKey.currentState!.reset();
+      setState(() {
+        empreendedorSelecionado = null;
+        empreendedorId = null;
+        _cadastrandoNovo = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erro ao salvar: $e")));
     }
-
-    await FirebaseFirestore.instance.collection('apuracoes').add({
-      'empreendedorId': empreendedorId,
-      'empreendedorNome': empreendedorSelecionado ?? nomeNovoEmpreendedor,
-      'data': dataController.text,
-      'pecasVendidas': int.tryParse(pecasVendidasController.text) ?? 0,
-      'totalVendas': _parseMoney(totalVendasController.text),
-      'totalEncomendado': _parseMoney(totalEncomendadoController.text),
-      'pecasEncomendadas': int.tryParse(pecasEncomendadasController.text) ?? 0,
-      'criadoEm': FieldValue.serverTimestamp(),
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Apuração registrada com sucesso!")),
-    );
-
-    _formKey.currentState!.reset();
-    setState(() {
-      empreendedorSelecionado = null;
-      empreendedorId = null;
-      _cadastrandoNovo = false;
-    });
   }
 
   @override
@@ -81,13 +113,12 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF3D3D3D),
         automaticallyImplyLeading: false,
-        
         elevation: 0.5,
         title: Row(
-          children: [
-            const Icon(Icons.store, color: Color(0xFF4F3222)),
-            const SizedBox(width: 8),
-            const Text(
+          children: const [
+            Icon(Icons.store, color: Color(0xFF4F3222)),
+            SizedBox(width: 8),
+            Text(
               "Museu do Artesanato Paraense",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
@@ -133,7 +164,7 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
               ),
               const SizedBox(height: 24),
 
-              // Empreendedor
+              // --- Empreendedor ---
               Container(
                 decoration: _cardDecoration(),
                 padding: const EdgeInsets.all(16),
@@ -142,7 +173,6 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
                   children: [
                     _sectionTitle("Empreendedor(a)"),
                     const SizedBox(height: 12),
-
                     FutureBuilder<List<Map<String, dynamic>>>(
                       future: _buscarEmpreendedores(),
                       builder: (context, snapshot) {
@@ -179,15 +209,6 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
                               setState(() {
                                 empreendedorSelecionado = value;
                                 _cadastrandoNovo = false;
-                                final encontrado = empreendedores.firstWhere(
-                                  (e) => e['nome'] == value,
-                                  orElse: () => {
-                                    'id': null,
-                                    'nome': '',
-                                    'barraca': '',
-                                  },
-                                );
-                                empreendedorId = encontrado['id'];
                               });
                             }
                           },
@@ -227,26 +248,34 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
               ),
               const SizedBox(height: 16),
 
-              // Data
+              // --- Data (digitável) ---
               _sectionCard(
                 "Data da Apuração",
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: dataController,
-                      readOnly: true,
-                      decoration: _inputDecoration("Data atual").copyWith(
-                        suffixIcon: const Icon(Icons.lock, color: Colors.grey),
-                      ),
-                    ),
+
+                TextFormField(
+                  controller: dataController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    MaskedInputFormatter('##/##/####'), // 🧩 Máscara da data
                   ],
+                  decoration: _inputDecoration("Data da Apuração (dd/mm/aaaa)"),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return "Informe a data";
+                    final regex = RegExp(r'^\d{2}/\d{2}/\d{4}$');
+                    if (!regex.hasMatch(v))
+                      return "Formato inválido (use dd/mm/aaaa)";
+                    try {
+                      DateFormat('dd/MM/yyyy').parseStrict(v);
+                      return null;
+                    } catch (_) {
+                      return "Data inválida";
+                    }
+                  },
                 ),
               ),
-
               const SizedBox(height: 16),
 
-              // ---- VENDAS DO DIA ----
+              // --- Vendas ---
               _sectionCard(
                 "Vendas do Dia",
                 Row(
@@ -268,7 +297,6 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
                           CurrencyInputFormatter(
                             leadingSymbol: '',
                             thousandSeparator: ThousandSeparator.Period,
-                            useSymbolPadding: false,
                             mantissaLength: 2,
                           ),
                         ],
@@ -279,7 +307,7 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
               ),
               const SizedBox(height: 16),
 
-              // ---- ENCOMENDAS ----
+              // --- Encomendas ---
               _sectionCard(
                 "Encomendas",
                 Row(
@@ -303,7 +331,6 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
                           CurrencyInputFormatter(
                             leadingSymbol: '',
                             thousandSeparator: ThousandSeparator.Period,
-                            useSymbolPadding: false,
                             mantissaLength: 2,
                           ),
                         ],
@@ -341,35 +368,31 @@ class _ApuracaoPageState extends State<ApuracaoPage> {
     );
   }
 
+  // Conversor de moeda BR → double
   double _parseMoney(String value) {
-    // Remove espaços e símbolo de moeda, troca separadores BR → EN
     final clean = value
-        .replaceAll('.', '') // remove pontos dos milhares
-        .replaceAll(',', '.') // troca vírgula decimal por ponto
-        .replaceAll('R\$', '') // remove símbolo se houver
+        .replaceAll('.', '')
+        .replaceAll(',', '.')
+        .replaceAll('R\$', '')
         .trim();
-
     return double.tryParse(clean) ?? 0.0;
   }
 
-  Widget _sectionCard(String title, Widget child) {
-    return Container(
-      decoration: _cardDecoration(),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [_sectionTitle(title), const SizedBox(height: 12), child],
-      ),
-    );
-  }
+  // Reuso de UI
+  Widget _sectionCard(String title, Widget child) => Container(
+    decoration: _cardDecoration(),
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [_sectionTitle(title), const SizedBox(height: 12), child],
+    ),
+  );
 
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: const Color(0xFFD9D9D9)),
-      borderRadius: BorderRadius.circular(12),
-    );
-  }
+  BoxDecoration _cardDecoration() => BoxDecoration(
+    color: Colors.white,
+    border: Border.all(color: const Color(0xFFD9D9D9)),
+    borderRadius: BorderRadius.circular(12),
+  );
 
   Widget _sectionTitle(String text) => Text(
     text,

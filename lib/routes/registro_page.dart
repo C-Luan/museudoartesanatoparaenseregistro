@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import '../services/visitor_service.dart'; // Mantido, assumindo que esta classe existe
-
+import 'package:flutter/services.dart';
 class RegistroPage extends StatefulWidget {
   const RegistroPage({super.key});
 
@@ -163,55 +163,103 @@ class _RegistroPageState extends State<RegistroPage> {
       ),
     );
   }
+// Campo de acompanhantes digitável, numérico e responsivo
+Widget _buildAcompanhantesCounter() {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      bool isSmallScreen = constraints.maxWidth < 400;
 
-  // Widget de contagem de acompanhantes estilizado
-  Widget _buildAcompanhantesCounter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.white,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            "Número de acompanhantes",
-            style: TextStyle(fontSize: 16, color: Colors.black87),
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.remove_circle, size: 32),
-                color: acompanhantes > 0
-                    ? Colors.redAccent
-                    : Colors.grey.shade400,
-                onPressed: () => setState(() {
-                  if (acompanhantes > 0) acompanhantes--;
-                }),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  '$acompanhantes',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.white,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Número de acompanhantes",
+              style: TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                // Botão de diminuir
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      if (acompanhantes > 0) acompanhantes--;
+                    });
+                  },
+                  icon: const Icon(Icons.remove_circle_outline),
+                  color:
+                      acompanhantes > 0 ? Colors.redAccent : Colors.grey.shade400,
+                  iconSize: 30,
+                ),
+
+                // Campo numérico
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey(acompanhantes),
+                    textAlign: TextAlign.center,
+                    controller: TextEditingController(
+                        text: acompanhantes.toString()), // Atualiza valor
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 14),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF667C73), width: 2),
+                      ),
+                    ),
+                    inputFormatters: [
+                      // Permite apenas números
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        acompanhantes = int.tryParse(value) ?? 0;
+                      });
+                    },
+                    validator: (value) {
+                      final n = int.tryParse(value ?? '');
+                      if (n == null || n < 0) {
+                        return 'Informe um número válido';
+                      }
+                      return null;
+                    },
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle, size: 32),
-                color: Colors.green,
-                onPressed: () => setState(() => acompanhantes++),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
+                // Botão de aumentar
+                IconButton(
+                  onPressed: () {
+                    setState(() => acompanhantes++);
+                  },
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: Colors.green,
+                  iconSize: 30,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
